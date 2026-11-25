@@ -121,8 +121,8 @@ The full write-up, with examples of v1's invented achievements, is in [docs/PROM
 Requires Node.js 18 or newer.
 
 ```bash
-git clone https://github.com/Subhrajitmkj04/<repo-name>.git
-cd <repo-name>
+git clone https://github.com/Subhrajitmkj04/ResumeX.git
+cd ResumeX
 cp .env.example .env.local     # then paste your Gemini key after GEMINI_API_KEY=
 npm run dev                    # open http://localhost:3000
 ```
