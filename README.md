@@ -8,17 +8,17 @@ Resumex compares a resume with a job description and tells the candidate, honest
 
 | | |
 |---|---|
-| 🎯 **ATS match score** | Weighted score (skills 40%, experience 25%, keywords 20%, presentation 15%) with a per-part breakdown |
-| 🧑‍💻 / 🎓 **Two copilots** | *Tech Recruiter* judges stack depth and engineering impact; *Fresh Graduate* weighs projects, internships and coursework instead of years of experience |
-| 🔑 **Missing keywords** | Terms from the job description that the resume lacks, double-checked in code so a keyword already in the resume is never reported as missing |
-| 🧭 **Skill gap analysis** | Each gap marked must-have or nice-to-have, with a concrete way to close it |
-| ✍️ **Honest bullet rewrites** | Weak resume lines rewritten for impact. Numbers the resume doesn't give become placeholders like `[X%]`, never invented achievements |
-| ✉️ **Cover letter generator** | Written only from facts in the resume, with a copy button |
-| 🎤 **Interview prep** | 6 likely questions (technical, gap-probing, project, behavioral) with why they're asked and how to answer from the candidate's real experience |
-| 📄 **PDF upload** | Text is extracted in the browser with pdf.js. Scanned PDFs are detected |
-| 🌐 **English / हिंदी feedback** | Tech terms and keywords stay in English |
-| 📈 **Score progress** | Re-analyse against the same job and see how much the score moved |
-| 🕘 **History, report export, dark mode** | History is saved only in the browser (resume text is never stored). The report prints to PDF |
+| **ATS match score** | Weighted score (skills 40%, experience 25%, keywords 20%, presentation 15%) with a per-part breakdown |
+| **Four reviewers** | *Career Coach* (any industry), *Tech Recruiter* (stack depth and engineering impact), *Fresh Graduate* (projects and coursework count as evidence), *Career Changer* (maps transferable skills to the new field) |
+| **Missing keywords** | Terms from the job description that the resume lacks, double-checked in code so a keyword already in the resume is never reported as missing |
+| **Skill gap analysis** | Each gap marked must-have or nice-to-have, with a concrete way to close it |
+| **Honest bullet rewrites** | Weak resume lines rewritten for impact. Numbers the resume doesn't give become placeholders like `[X%]`, never invented achievements |
+| **Cover letter generator** | Written only from facts in the resume, with a copy button |
+| **Interview prep** | 6 likely questions (technical, gap-probing, project, behavioral) with why they're asked and how to answer from the candidate's real experience |
+| **PDF upload** | Text is extracted in the browser with pdf.js. Scanned PDFs are detected |
+| **English / हिंदी feedback** | Tech terms and keywords stay in English |
+| **Score progress** | Re-analyse against the same job and see how much the score moved |
+| **History, report export, dark mode** | History is saved only in the browser (resume text is never stored). The report prints to PDF |
 
 ## How it works
 

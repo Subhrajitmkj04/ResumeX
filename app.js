@@ -1,5 +1,5 @@
-// Resumex front end: inputs, PDF text extraction, calling /api/analyze,
-// rendering results, history, dark mode and the printable report.
+// Resumex front end: inputs, PDF text extraction, calling the API,
+// rendering the review, history, dark mode and the printable report.
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -20,15 +20,21 @@ const els = {
   fileNotice: $("fileNotice"),
 };
 
-const MODE_LABELS = { tech: "Tech Recruiter", fresher: "Fresh Graduate" };
+const MODE_LABELS = {
+  general: "Career Coach",
+  tech: "Tech Recruiter",
+  fresher: "Fresh Graduate",
+  changer: "Career Changer",
+};
 const HISTORY_KEY = "resumex.history.v1";
 const HISTORY_MAX = 15;
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_BASE = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+const DEFAULT_FILE_NOTE = "The text is read in your browser. The file itself isn't uploaded.";
 
-let mode = "tech";
+let mode = "general";
 let language = "en";
-// The inputs behind the analysis on screen, so the toolkit can reuse them.
+// The inputs behind the review on screen, so the toolkit can reuse them.
 let lastInputs = null;
 
 // Everything the AI returns is untrusted text: always escape before inserting.
@@ -36,6 +42,11 @@ function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[c]);
+}
+
+// Escape, then mark [placeholders] the candidate must fill in themselves.
+function withPlaceholders(value) {
+  return esc(value).replace(/\[([^\]]{1,40})\]/g, '<span class="placeholder">[$1]</span>');
 }
 
 const storage = {
@@ -50,7 +61,7 @@ const storage = {
   },
 };
 
-/* ── Theme ─────────────────────────────────────────── */
+/* Theme */
 
 function currentTheme() {
   const set = document.documentElement.dataset.theme;
@@ -59,9 +70,7 @@ function currentTheme() {
 }
 
 function updateThemeButton() {
-  const dark = currentTheme() === "dark";
-  els.themeToggle.querySelector(".theme-icon").textContent = dark ? "☀️" : "🌙";
-  els.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  els.themeToggle.textContent = currentTheme() === "dark" ? "Light mode" : "Dark mode";
 }
 
 els.themeToggle.addEventListener("click", () => {
@@ -71,26 +80,23 @@ els.themeToggle.addEventListener("click", () => {
   updateThemeButton();
 });
 
-/* ── Mode switch ───────────────────────────────────── */
+/* Reviewer and language */
 
-document.querySelectorAll(".mode-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    mode = btn.dataset.mode;
-    document.querySelectorAll(".mode-btn").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
-  });
-});
-
-/* ── Feedback language ─────────────────────────────── */
+function setMode(next) {
+  mode = MODE_LABELS[next] ? next : "general";
+  document.querySelectorAll(".mode").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
+}
+document.querySelectorAll(".mode").forEach((btn) => btn.addEventListener("click", () => setMode(btn.dataset.mode)));
 
 function setLanguage(lang) {
   language = lang === "hi" ? "hi" : "en";
-  document.querySelectorAll(".seg-btn").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === language)));
+  document.querySelectorAll(".seg").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === language)));
   try { localStorage.setItem("resumex.lang", language); } catch { /* ignore */ }
 }
-document.querySelectorAll(".seg-btn").forEach((btn) => btn.addEventListener("click", () => setLanguage(btn.dataset.lang)));
+document.querySelectorAll(".seg").forEach((btn) => btn.addEventListener("click", () => setLanguage(btn.dataset.lang)));
 try { setLanguage(localStorage.getItem("resumex.lang") || "en"); } catch { setLanguage("en"); }
 
-/* ── Character counts ──────────────────────────────── */
+/* Character counts */
 
 function updateCounts() {
   els.resumeCount.textContent = `${els.resume.value.trim().length.toLocaleString()} characters`;
@@ -99,7 +105,7 @@ function updateCounts() {
 els.resume.addEventListener("input", updateCounts);
 els.jobDesc.addEventListener("input", updateCounts);
 
-/* ── PDF / TXT upload ──────────────────────────────── */
+/* PDF / TXT upload */
 
 let pdfjsPromise;
 function loadPdfJs() {
@@ -113,7 +119,7 @@ function loadPdfJs() {
       };
       script.onerror = () => {
         pdfjsPromise = null;
-        reject(new Error("Could not load the PDF reader. Check your internet connection."));
+        reject(new Error("the PDF reader couldn't load. Check your internet connection."));
       };
       document.head.appendChild(script);
     });
@@ -139,29 +145,29 @@ async function pdfToText(file) {
 
 function setFileStatus(message, kind = "") {
   els.fileStatus.textContent = message;
-  els.fileStatus.className = kind;
+  els.fileStatus.className = `drop-note ${kind}`.trim();
 }
 
 async function handleFile(file) {
   if (!file) return;
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   const isTxt = file.type === "text/plain" || /\.txt$/i.test(file.name);
-  if (!isPdf && !isTxt) return setFileStatus("Please choose a PDF or TXT file.", "err");
-  if (file.size > 5 * 1024 * 1024) return setFileStatus("That file is over 5 MB. Please use a smaller file.", "err");
+  if (!isPdf && !isTxt) return setFileStatus("Please choose a PDF or a .txt file.", "err");
+  if (file.size > 5 * 1024 * 1024) return setFileStatus("That file is over 5 MB. Please use a smaller one.", "err");
 
   setFileStatus(`Reading ${file.name}…`);
   try {
     const text = isPdf ? await pdfToText(file) : (await file.text()).trim();
     if (text.length < 50) {
       return setFileStatus(isPdf
-        ? "No selectable text found. This PDF may be a scanned image, so paste the text instead."
-        : "The file is almost empty.", "err");
+        ? "There's no selectable text in this PDF. It's probably a scanned image, so paste the text instead."
+        : "That file is almost empty.", "err");
     }
     els.resume.value = text;
     updateCounts();
-    setFileStatus(`✓ Extracted ${text.length.toLocaleString()} characters from ${file.name}. Check the text below.`, "ok");
+    setFileStatus(`Read ${text.length.toLocaleString()} characters from ${file.name}. Check the text below before you continue.`, "ok");
   } catch (err) {
-    setFileStatus(`Could not read the file: ${err.message}`, "err");
+    setFileStatus(`Couldn't read the file: ${err.message}`, "err");
   } finally {
     els.file.value = "";
   }
@@ -178,21 +184,39 @@ els.file.addEventListener("change", () => handleFile(els.file.files[0]));
 }));
 els.dropZone.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
 
-/* ── Analyze ───────────────────────────────────────── */
+/* Review */
 
 function showError(title, detail) {
-  els.results.innerHTML = `
-    <div class="error-box" role="alert">
-      <span class="emoji" aria-hidden="true">⚠️</span>
-      <div><strong>${esc(title)}</strong><br>${esc(detail)}</div>
-    </div>`;
+  els.results.innerHTML = `<div class="error" role="alert"><strong>${esc(title)}</strong>${esc(detail)}</div>`;
 }
 
 function setBusy(busy) {
   els.analyzeBtn.disabled = busy;
-  els.analyzeBtn.innerHTML = busy
-    ? '<span class="spinner small" aria-hidden="true"></span> Analyzing…'
-    : '<span aria-hidden="true">🚀</span> Analyze Resume';
+  els.analyzeBtn.innerHTML = busy ? '<span class="dots">Reviewing</span>' : "Review my resume";
+}
+
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Server error ${response.status}`);
+  return data;
+}
+
+// Same job description + reviewer → same key, so a second review can show progress.
+function jobKey(jobDesc, usedMode) {
+  const text = `${usedMode}|${jobDesc.toLowerCase().replace(/\s+/g, " ").trim()}`;
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+  return (hash >>> 0).toString(36);
+}
+
+function guessJobTitle(jobDesc) {
+  const line = jobDesc.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 2) || "Job description";
+  return line.length > 90 ? `${line.slice(0, 87)}…` : line;
 }
 
 async function analyze() {
@@ -200,26 +224,20 @@ async function analyze() {
   const jobDesc = els.jobDesc.value.trim();
 
   if (!resume || !jobDesc) {
-    return showError("Please fill in both fields", "Add your resume (paste it or upload a PDF) and the job description.");
+    return showError("Both boxes need text.", " Add your resume (paste it or upload a PDF) and the job description.");
   }
   if (resume.length < 50 || jobDesc.length < 50) {
-    return showError("Content too short", "Paste the full resume and the complete job description for an accurate analysis.");
+    return showError("That's too short to review.", " Paste the whole resume and the complete job description.");
   }
   if (location.protocol === "file:") {
-    return showError("The AI server isn't running", "Run `npm run dev` in the project folder and open http://localhost:3000, or use the live site.");
+    return showError("The reviewer isn't running.", " Start it with `npm run dev` and open http://localhost:3000, or use the live site.");
   }
 
   setBusy(true);
-  els.results.innerHTML = `
-    <div class="loading">
-      <div class="spinner" aria-hidden="true"></div>
-      <p><strong>Reading your resume like a ${esc(MODE_LABELS[mode])}…</strong></p>
-      <p style="font-size:13px;margin-top:6px">This usually takes 5–15 seconds.</p>
-    </div>`;
+  els.results.innerHTML = `<p class="status">Reading your resume as a ${esc(MODE_LABELS[mode])} would<span class="dots"></span></p>`;
 
   try {
     const data = await postJson("/api/analyze", { resume, jobDesc, mode, language });
-
     const jdKey = jobKey(jobDesc, data.mode);
     const previous = loadHistory().find((h) => h.jdKey === jdKey);
     const entry = {
@@ -234,192 +252,155 @@ async function analyze() {
     };
     lastInputs = { id: entry.id, resume, jobDesc, mode: data.mode, language };
     saveToHistory(entry);
-    renderResults(entry);
+    renderReport(entry);
   } catch (err) {
-    showError("Analysis failed", `${err.message} If it keeps happening, wait a minute and try again.`);
+    showError("The review didn't go through.", ` ${err.message} If it keeps happening, wait a minute and try again.`);
   } finally {
     setBusy(false);
   }
 }
 
-async function postJson(url, payload) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Server error ${response.status}`);
-  return data;
+function verdict(score) {
+  if (score >= 80) return { color: "var(--good)", text: "Strong match for this job." };
+  if (score >= 60) return { color: "var(--fair)", text: "A good match, with a few clear gaps to close." };
+  if (score >= 40) return { color: "var(--fair)", text: "A partial match. It needs real changes for this job." };
+  return { color: "var(--poor)", text: "A weak match for this job as the resume stands." };
 }
 
-// Same job description + mode → same key, so re-analyses can show progress.
-function jobKey(jobDesc, usedMode) {
-  const text = `${usedMode}|${jobDesc.toLowerCase().replace(/\s+/g, " ").trim()}`;
-  let hash = 5381;
-  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
-  return (hash >>> 0).toString(36);
-}
-
-function guessJobTitle(jobDesc) {
-  const line = jobDesc.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 2) || "Job description";
-  return line.length > 70 ? `${line.slice(0, 67)}…` : line;
-}
-
-/* ── Results ───────────────────────────────────────── */
-
-function scoreStyle(score) {
-  if (score >= 80) return { color: "var(--success)", message: "Excellent match. Your resume is well aligned." };
-  if (score >= 60) return { color: "var(--gold)", message: "Good match. A few changes will lift it further." };
-  if (score >= 40) return { color: "var(--coral)", message: "Fair match. Consider significant updates." };
-  return { color: "var(--danger)", message: "Low match. Major revisions needed for this role." };
-}
-
-function list(items, cls = "insight-list") {
-  if (!items.length) return '<p class="empty">Nothing to show.</p>';
-  return `<ul class="${cls}">${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
-}
-
-function renderResults(entry) {
+function renderReport(entry) {
   const { analysis: a, model, version, mode: usedMode } = entry.result;
   const score = a.ats_score;
-  const style = scoreStyle(score);
-  const breakdownRows = [
+  const v = verdict(score);
+  const live = lastInputs && lastInputs.id === entry.id;
+  const when = new Date(entry.date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+  let change = "";
+  if (entry.previous) {
+    const diff = score - entry.previous.score;
+    const since = new Date(entry.previous.date).toLocaleDateString(undefined, { dateStyle: "medium" });
+    change = diff > 0 ? `<p class="change up">Up ${diff} since your review on ${esc(since)}</p>`
+      : diff < 0 ? `<p class="change down">Down ${Math.abs(diff)} since your review on ${esc(since)}</p>`
+        : `<p class="change same">Same as your review on ${esc(since)}</p>`;
+  }
+
+  const parts = [
     ["Skills", a.score_breakdown.skills],
     ["Experience", a.score_breakdown.experience],
     ["Keywords", a.score_breakdown.keywords],
     ["Presentation", a.score_breakdown.presentation],
   ].map(([label, value]) => `
-    <div class="bar-row">
-      <div class="bar-label"><span>${label}</span><strong>${value}</strong></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${value}%"></div></div>
-    </div>`).join("");
+    <div class="part"><span>${label}</span><span class="part-bar"><span style="width:${value}%"></span></span><b>${value}</b></div>`).join("");
+
+  const strengths = a.strengths.length
+    ? `<ul class="plain-list">${a.strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`
+    : '<p class="muted">Nothing stood out yet.</p>';
+
+  const keywords = a.missing_keywords.length
+    ? `<div class="tags">${a.missing_keywords.map((k) => `<span class="tag">${esc(k)}</span>`).join("")}</div>`
+    : '<p class="muted">Nothing important is missing.</p>';
 
   const gaps = a.skill_gaps.length
-    ? `<ul class="gap-list">${a.skill_gaps.map((g) => `
-        <li class="gap-item">
-          <div class="gap-top">
-            <span class="gap-skill">${esc(g.skill)}</span>
-            <span class="pill ${g.priority === "must-have" ? "pill-must" : "pill-nice"}">${esc(g.priority)}</span>
-          </div>
-          <div class="gap-how">${esc(g.how_to_close)}</div>
-        </li>`).join("")}</ul>`
-    : '<p class="empty">No major skill gaps found for this role.</p>';
+    ? `<div class="gaps">${a.skill_gaps.map((g) => `
+        <div class="gap">
+          <span class="gap-skill">${esc(g.skill)}</span>
+          <span class="priority ${g.priority === "must-have" ? "must" : "nice"}">${g.priority === "must-have" ? "must have" : "nice to have"}</span>
+          <span class="gap-how">${esc(g.how_to_close)}</span>
+        </div>`).join("")}</div>`
+    : '<p class="muted">No significant gaps for this job.</p>';
+
+  const improvements = a.improvements.length
+    ? `<ol class="numbered">${a.improvements.map((i) => `<li><span>${esc(i)}</span></li>`).join("")}</ol>`
+    : '<p class="muted">No changes suggested.</p>';
 
   const rewrites = a.bullet_rewrites.length
     ? a.bullet_rewrites.map((b) => `
         <div class="rewrite">
-          <div class="before"><span class="tag">Before</span><span class="text">${esc(b.original)}</span></div>
-          <div class="after"><span class="tag">After</span>${esc(b.improved)}</div>
+          <span class="label">Now</span><span class="was">${esc(b.original)}</span>
+          <span class="label">Try</span><span>${withPlaceholders(b.improved)}</span>
         </div>`).join("")
-    : '<p class="empty">Your bullet points already read well.</p>';
-
-  const keywords = a.missing_keywords.length
-    ? `<div class="keyword-list">${a.missing_keywords.map((k) => `<span class="keyword">${esc(k)}</span>`).join("")}</div>`
-    : '<p class="empty">No important keywords are missing. Nice!</p>';
-
-  const when = new Date(entry.date).toLocaleString();
-  const live = lastInputs && lastInputs.id === entry.id;
-
-  let delta = "";
-  if (entry.previous) {
-    const diff = score - entry.previous.score;
-    const since = new Date(entry.previous.date).toLocaleDateString();
-    delta = diff > 0 ? `<span class="delta up">▲ +${diff} since your last check (${esc(since)})</span>`
-      : diff < 0 ? `<span class="delta down">▼ ${diff} since your last check (${esc(since)})</span>`
-        : `<span class="delta same">No change since your last check (${esc(since)})</span>`;
-  }
+    : '<p class="muted">Your bullet points already read well.</p>';
 
   const toolkit = live
-    ? `<div class="toolkit-buttons no-print">
-         <button type="button" class="btn btn-teal" data-tool="cover_letter">✉️ Write my cover letter</button>
-         <button type="button" class="btn btn-teal" data-tool="interview">🎤 Prep my interview</button>
+    ? `<div class="toolkit no-print">
+         <button type="button" class="btn btn-secondary" data-tool="cover_letter">Write a cover letter</button>
+         <button type="button" class="btn btn-secondary" data-tool="interview">Practise interview questions</button>
        </div>
        <div id="toolOutput" class="tool-output"></div>`
-    : '<p class="tool-note">To write a cover letter or prepare for the interview, run a new analysis. Saved results don\'t keep your resume text.</p>';
+    : '<p class="muted">Run a new review to use these. Saved reviews don\'t keep your resume text.</p>';
 
   els.results.innerHTML = `
-    <div class="results-toolbar">
-      <p class="meta">Analyzed as <strong>${esc(MODE_LABELS[usedMode] || usedMode)}</strong> · ${esc(entry.jobTitle)} · ${esc(when)}<br>
-        Model <strong>${esc(model)}</strong> · Prompt <strong>${esc(version)}</strong>${entry.result.language === "hi" ? " · हिंदी" : ""}</p>
-      <button id="downloadBtn" class="btn btn-ghost no-print" type="button">⬇️ Download report (PDF)</button>
-    </div>
-
-    <div class="result-grid">
-      <div class="result-card score-card">
-        <h4 style="justify-content:center">🎯 ATS Match Score</h4>
-        <div class="score-ring" style="--deg:${score * 3.6}deg;--ring:${style.color}">
-          <div class="score-ring-inner">
-            <div class="score-number" style="color:${style.color}">${score}</div>
-            <div class="score-label">out of 100</div>
-          </div>
+    <article class="report">
+      <header class="report-head">
+        <div>
+          <p class="eyebrow">Review by the ${esc(MODE_LABELS[usedMode] || usedMode)}${entry.result.language === "hi" ? " · हिंदी" : ""}</p>
+          <h2>${esc(entry.jobTitle)}</h2>
+          <p class="report-meta">${esc(when)} · ${esc(model)} · prompt ${esc(version)}</p>
         </div>
-        <p class="score-message">${esc(style.message)}</p>
-        ${delta}
-        <div class="breakdown">${breakdownRows}</div>
-      </div>
+        <button id="downloadBtn" class="btn btn-secondary no-print" type="button">Save as PDF</button>
+      </header>
 
-      <div>
-        <div class="result-card">
-          <h4>📝 Summary</h4>
-          <p class="summary-text">${esc(a.summary || "No summary provided.")}</p>
+      <div class="overview">
+        <div>
+          <p class="score" style="color:${v.color}">${score}<small> / 100</small></p>
+          <p class="verdict">${esc(v.text)}</p>
+          ${change}
+          <div class="parts">${parts}</div>
         </div>
-        <div class="result-card">
-          <h4>✅ What your resume does well</h4>
-          ${list(a.strengths)}
+        <div>
+          <p class="summary">${esc(a.summary || "No summary was returned.")}</p>
+          <h3>What already works</h3>
+          ${strengths}
         </div>
       </div>
-    </div>
 
-    <div class="result-card">
-      <h4>🔑 Missing keywords</h4>
-      <p class="hint">Words from the job description that aren't in your resume. Add the ones that truly apply to you.</p>
-      ${keywords}
-    </div>
+      <section class="section">
+        <h3>Missing from your resume</h3>
+        <p class="section-intro">Terms the job description uses that your resume doesn't. Add the ones that are true for you, in the job's own wording.</p>
+        ${keywords}
+      </section>
 
-    <div class="result-card">
-      <h4>🧭 Skill gap analysis</h4>
-      <p class="hint">What this role needs that your resume doesn't show yet, and how to close each gap.</p>
-      ${gaps}
-    </div>
+      <section class="section">
+        <h3>Skill gaps</h3>
+        <p class="section-intro">What this role needs that your resume doesn't show yet, and a practical way to close each gap.</p>
+        ${gaps}
+      </section>
 
-    <div class="result-card">
-      <h4>💡 Recommended improvements</h4>
-      ${list(a.improvements, "insight-list improvement-list")}
-    </div>
+      <section class="section">
+        <h3>What to change</h3>
+        ${improvements}
+      </section>
 
-    <div class="result-card">
-      <h4>✍️ Stronger bullet points</h4>
-      <p class="hint">Lines from your resume, rewritten to show impact. Only use numbers that are true for you.</p>
-      ${rewrites}
-    </div>
+      <section class="section">
+        <h3>Stronger bullet points</h3>
+        <p class="section-intro">Lines from your resume, rewritten. Anything in <span class="placeholder">[brackets]</span> is a number only you know, so fill it in truthfully or leave it out.</p>
+        ${rewrites}
+      </section>
 
-    <div class="result-card">
-      <h4>🧰 Career toolkit</h4>
-      <p class="hint">Turn this analysis into a cover letter or interview practice, written only from facts in your resume.</p>
-      ${toolkit}
-    </div>
+      <section class="section no-print">
+        <h3>Next: apply for it</h3>
+        <p class="section-intro">A cover letter and interview questions for this job, written only from what's in your resume.</p>
+        ${toolkit}
+      </section>
 
-    <div class="next-steps no-print">
-      <strong>🎯 Next step:</strong> update your resume with the changes above and analyze it again. Resumex will show how much your score moved.
-    </div>`;
+      <p class="report-foot no-print">Make the changes, then review the resume again. You'll see how far the score moved.</p>
+    </article>`;
 
   $("downloadBtn").addEventListener("click", () => window.print());
   els.results.querySelectorAll("[data-tool]").forEach((btn) => btn.addEventListener("click", () => runTool(btn.dataset.tool, btn)));
   els.results.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-/* ── Career toolkit ────────────────────────────────── */
+/* Cover letter and interview practice */
 
-const TOOL_LABELS = { cover_letter: "✉️ Write my cover letter", interview: "🎤 Prep my interview" };
-const CATEGORY_LABELS = { technical: "Technical", gap: "Gap", project: "Your project", behavioral: "Behavioral" };
+const TOOL_LABELS = { cover_letter: "Write a cover letter", interview: "Practise interview questions" };
+const KIND_LABELS = { technical: "Technical", gap: "About a gap", project: "About your project", behavioral: "Behavioural" };
 
 async function runTool(type, button) {
   if (!lastInputs) return;
   const output = $("toolOutput");
   const buttons = els.results.querySelectorAll("[data-tool]");
   buttons.forEach((b) => { b.disabled = true; });
-  button.innerHTML = '<span class="spinner small" aria-hidden="true"></span> Writing…';
+  button.innerHTML = '<span class="dots">Writing</span>';
   output.innerHTML = "";
 
   try {
@@ -431,45 +412,44 @@ async function runTool(type, button) {
       copyBtn.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(`Subject: ${data.result.subject}\n\n${data.result.body}`);
-          copyBtn.textContent = "✓ Copied";
+          copyBtn.textContent = "Copied";
         } catch {
-          copyBtn.textContent = "Copy failed. Select the text instead.";
+          copyBtn.textContent = "Couldn't copy. Select the text instead.";
         }
       });
     }
     output.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
-    output.innerHTML = `<div class="error-box" role="alert"><span class="emoji" aria-hidden="true">⚠️</span><div><strong>Couldn't generate that</strong><br>${esc(err.message)}</div></div>`;
+    output.innerHTML = `<div class="error" role="alert"><strong>That didn't work.</strong>${esc(err.message)}</div>`;
   } finally {
-    buttons.forEach((b) => { b.disabled = false; b.innerHTML = TOOL_LABELS[b.dataset.tool]; });
+    buttons.forEach((b) => { b.disabled = false; b.textContent = TOOL_LABELS[b.dataset.tool]; });
   }
 }
 
 function renderLetter(letter) {
   return `
     <div class="tool-head">
-      <h5>✉️ Your cover letter</h5>
-      <button id="copyLetterBtn" type="button" class="btn btn-ghost no-print">📋 Copy</button>
+      <h4>Cover letter</h4>
+      <button id="copyLetterBtn" type="button" class="text-btn">Copy to clipboard</button>
     </div>
-    <p class="letter-subject"><strong>Subject:</strong> ${esc(letter.subject)}</p>
-    <div class="letter">${esc(letter.body)}</div>
-    <p class="tool-note" style="margin-top:8px">Fill in anything in [square brackets] with true details before sending.</p>`;
+    <p class="letter-subject"><span class="muted">Subject:</span> ${esc(letter.subject)}</p>
+    <div class="letter">${withPlaceholders(letter.body)}</div>`;
 }
 
 function renderInterview(prep) {
-  if (!prep.questions.length) return '<p class="empty">No questions came back. Try again.</p>';
+  if (!prep.questions.length) return '<p class="muted">No questions came back. Please try again.</p>';
   return `
-    <div class="tool-head"><h5>🎤 Likely interview questions</h5></div>
-    <ol class="qa-list">${prep.questions.map((q) => `
-      <li class="qa-item">
-        <span class="pill pill-${esc(q.category)}">${esc(CATEGORY_LABELS[q.category] || q.category)}</span>
+    <div class="tool-head"><h4>Questions you're likely to get</h4></div>
+    <ol class="qa">${prep.questions.map((q) => `
+      <li>
+        <span class="qa-kind">${esc(KIND_LABELS[q.category] || q.category)}</span>
         <p class="qa-q">${esc(q.question)}</p>
-        <p class="qa-why"><strong>Why they ask:</strong> ${esc(q.why_asked)}</p>
-        <p class="qa-how"><strong>How to answer:</strong> ${esc(q.how_to_answer)}</p>
+        <p class="why">${esc(q.why_asked)}</p>
+        <p class="how"><strong>How to answer:</strong> ${esc(q.how_to_answer)}</p>
       </li>`).join("")}</ol>`;
 }
 
-/* ── History ───────────────────────────────────────── */
+/* History */
 
 function loadHistory() {
   const items = storage.get(HISTORY_KEY, []);
@@ -485,17 +465,18 @@ function renderHistory() {
   const items = loadHistory();
   els.clearHistoryBtn.hidden = items.length === 0;
   if (!items.length) {
-    els.historyList.innerHTML = '<li class="history-empty">No analyses yet. Your results will appear here.</li>';
+    els.historyList.innerHTML = '<li class="history-empty">Your reviews will appear here.</li>';
     return;
   }
   els.historyList.innerHTML = items.map((e) => `
     <li>
       <button class="history-item" type="button" data-id="${esc(e.id)}">
         <span class="history-score">${esc(e.score)}</span>
-        <span class="history-info">
+        <span>
           <span class="history-title">${esc(e.jobTitle)}</span>
-          <span class="history-sub">${esc(MODE_LABELS[e.mode] || e.mode)} · ${esc(new Date(e.date).toLocaleString())}</span>
+          <span class="history-sub">${esc(MODE_LABELS[e.mode] || e.mode)} · ${esc(new Date(e.date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }))}</span>
         </span>
+        <span class="history-open">Open</span>
       </button>
     </li>`).join("");
 }
@@ -504,16 +485,16 @@ els.historyList.addEventListener("click", (e) => {
   const btn = e.target.closest(".history-item");
   if (!btn) return;
   const entry = loadHistory().find((h) => String(h.id) === btn.dataset.id);
-  if (entry) renderResults(entry);
+  if (entry) renderReport(entry);
 });
 
 els.clearHistoryBtn.addEventListener("click", () => {
-  if (!confirm("Delete all saved analyses from this browser?")) return;
+  if (!confirm("Delete all saved reviews from this browser?")) return;
   storage.set(HISTORY_KEY, []);
   renderHistory();
 });
 
-/* ── Sample + clear ────────────────────────────────── */
+/* Sample and clear */
 
 const SAMPLE_RESUME = `Ananya Rao
 Bengaluru, India · github.com/ananya-rao-ml
@@ -567,7 +548,7 @@ Nice to have
 els.sampleBtn.addEventListener("click", () => {
   els.resume.value = SAMPLE_RESUME;
   els.jobDesc.value = SAMPLE_JOB;
-  document.querySelector('.mode-btn[data-mode="fresher"]').click();
+  setMode("fresher");
   setFileStatus("Sample loaded: a final-year student applying for an ML internship.", "ok");
   updateCounts();
 });
@@ -576,15 +557,16 @@ els.clearBtn.addEventListener("click", () => {
   els.resume.value = "";
   els.jobDesc.value = "";
   els.results.innerHTML = "";
-  setFileStatus("Text is extracted in your browser. The file is not uploaded anywhere.");
+  setFileStatus(DEFAULT_FILE_NOTE);
   updateCounts();
 });
 
 els.analyzeBtn.addEventListener("click", analyze);
 
-/* ── Start ─────────────────────────────────────────── */
+/* Start */
 
 if (location.protocol === "file:") els.fileNotice.hidden = false;
+setMode("general");
 updateThemeButton();
 updateCounts();
 renderHistory();
