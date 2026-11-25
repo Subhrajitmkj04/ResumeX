@@ -1,0 +1,8 @@
+# Secrets — never commit your API key
+.env
+.env.local
+.env.*.local
+
+node_modules/
+.vercel/
+tests/results/*.json

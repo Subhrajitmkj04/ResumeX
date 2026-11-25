@@ -1,0 +1,14 @@
+{
+  "name": "resumex",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resumex — AI resume analyzer for tech roles and fresh graduates, powered by the Gemini API",
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "eval": "node tests/run-eval.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
