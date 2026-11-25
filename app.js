@@ -30,7 +30,7 @@ const HISTORY_KEY = "resumex.history.v1";
 const HISTORY_MAX = 15;
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_BASE = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
-const DEFAULT_FILE_NOTE = "The text is read in your browser. The file itself isn't uploaded.";
+const DEFAULT_FILE_NOTE = "Read in your browser. The file isn't uploaded.";
 
 let mode = "general";
 let language = "en";
@@ -70,8 +70,11 @@ function currentTheme() {
 }
 
 function updateThemeButton() {
-  els.themeToggle.textContent = currentTheme() === "dark" ? "Light mode" : "Dark mode";
+  const dark = currentTheme() === "dark";
+  document.documentElement.classList.toggle("is-dark", dark);
+  els.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
 }
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateThemeButton);
 
 els.themeToggle.addEventListener("click", () => {
   const next = currentTheme() === "dark" ? "light" : "dark";
@@ -192,7 +195,7 @@ function showError(title, detail) {
 
 function setBusy(busy) {
   els.analyzeBtn.disabled = busy;
-  els.analyzeBtn.innerHTML = busy ? '<span class="dots">Reviewing</span>' : "Review my resume";
+  els.analyzeBtn.textContent = busy ? "Reviewing…" : "Review my resume";
 }
 
 async function postJson(url, payload) {
@@ -234,7 +237,11 @@ async function analyze() {
   }
 
   setBusy(true);
-  els.results.innerHTML = `<p class="status">Reading your resume as a ${esc(MODE_LABELS[mode])} would<span class="dots"></span></p>`;
+  els.results.innerHTML = `
+    <div class="loading" role="status">
+      <p>Reading your resume as a ${esc(MODE_LABELS[mode])} would. This takes a few seconds.</p>
+      <div class="bar"></div>
+    </div>`;
 
   try {
     const data = await postJson("/api/analyze", { resume, jobDesc, mode, language });
@@ -262,9 +269,9 @@ async function analyze() {
 
 function verdict(score) {
   if (score >= 80) return { color: "var(--good)", text: "Strong match for this job." };
-  if (score >= 60) return { color: "var(--fair)", text: "A good match, with a few clear gaps to close." };
-  if (score >= 40) return { color: "var(--fair)", text: "A partial match. It needs real changes for this job." };
-  return { color: "var(--poor)", text: "A weak match for this job as the resume stands." };
+  if (score >= 60) return { color: "var(--gold)", text: "Good match, with a few gaps to close." };
+  if (score >= 40) return { color: "var(--coral)", text: "Partial match. It needs real changes." };
+  return { color: "var(--poor)", text: "Weak match for this job as it stands." };
 }
 
 function renderReport(entry) {
@@ -278,9 +285,9 @@ function renderReport(entry) {
   if (entry.previous) {
     const diff = score - entry.previous.score;
     const since = new Date(entry.previous.date).toLocaleDateString(undefined, { dateStyle: "medium" });
-    change = diff > 0 ? `<p class="change up">Up ${diff} since your review on ${esc(since)}</p>`
-      : diff < 0 ? `<p class="change down">Down ${Math.abs(diff)} since your review on ${esc(since)}</p>`
-        : `<p class="change same">Same as your review on ${esc(since)}</p>`;
+    change = diff > 0 ? `<span class="change up">+${diff} since ${esc(since)}</span>`
+      : diff < 0 ? `<span class="change down">${diff} since ${esc(since)}</span>`
+        : `<span class="change same">Same as on ${esc(since)}</span>`;
   }
 
   const parts = [
@@ -289,10 +296,13 @@ function renderReport(entry) {
     ["Keywords", a.score_breakdown.keywords],
     ["Presentation", a.score_breakdown.presentation],
   ].map(([label, value]) => `
-    <div class="part"><span>${label}</span><span class="part-bar"><span style="width:${value}%"></span></span><b>${value}</b></div>`).join("");
+    <div class="part">
+      <div class="part-top"><span>${label}</span><b>${value}</b></div>
+      <div class="part-bar"><span style="width:${value}%"></span></div>
+    </div>`).join("");
 
   const strengths = a.strengths.length
-    ? `<ul class="plain-list">${a.strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`
+    ? `<ul class="list">${a.strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`
     : '<p class="muted">Nothing stood out yet.</p>';
 
   const keywords = a.missing_keywords.length
@@ -302,88 +312,99 @@ function renderReport(entry) {
   const gaps = a.skill_gaps.length
     ? `<div class="gaps">${a.skill_gaps.map((g) => `
         <div class="gap">
-          <span class="gap-skill">${esc(g.skill)}</span>
-          <span class="priority ${g.priority === "must-have" ? "must" : "nice"}">${g.priority === "must-have" ? "must have" : "nice to have"}</span>
-          <span class="gap-how">${esc(g.how_to_close)}</span>
+          <div class="gap-top">
+            <span class="gap-skill">${esc(g.skill)}</span>
+            <span class="pill ${g.priority === "must-have" ? "must" : "nice"}">${g.priority === "must-have" ? "Must have" : "Nice to have"}</span>
+          </div>
+          <div class="gap-how">${esc(g.how_to_close)}</div>
         </div>`).join("")}</div>`
     : '<p class="muted">No significant gaps for this job.</p>';
 
   const improvements = a.improvements.length
-    ? `<ol class="numbered">${a.improvements.map((i) => `<li><span>${esc(i)}</span></li>`).join("")}</ol>`
+    ? `<ol class="list numbered">${a.improvements.map((i) => `<li>${esc(i)}</li>`).join("")}</ol>`
     : '<p class="muted">No changes suggested.</p>';
 
   const rewrites = a.bullet_rewrites.length
     ? a.bullet_rewrites.map((b) => `
         <div class="rewrite">
-          <span class="label">Now</span><span class="was">${esc(b.original)}</span>
-          <span class="label">Try</span><span>${withPlaceholders(b.improved)}</span>
+          <div class="now"><small>Now</small><span>${esc(b.original)}</span></div>
+          <div class="try"><small>Try</small><span>${withPlaceholders(b.improved)}</span></div>
         </div>`).join("")
     : '<p class="muted">Your bullet points already read well.</p>';
 
   const toolkit = live
-    ? `<div class="toolkit no-print">
-         <button type="button" class="btn btn-secondary" data-tool="cover_letter">Write a cover letter</button>
-         <button type="button" class="btn btn-secondary" data-tool="interview">Practise interview questions</button>
+    ? `<div class="toolkit">
+         <button type="button" class="btn btn-ghost" data-tool="cover_letter">Write a cover letter</button>
+         <button type="button" class="btn btn-ghost" data-tool="interview">Practise interview questions</button>
        </div>
        <div id="toolOutput" class="tool-output"></div>`
     : '<p class="muted">Run a new review to use these. Saved reviews don\'t keep your resume text.</p>';
 
   els.results.innerHTML = `
-    <article class="report">
-      <header class="report-head">
+    <div class="results">
+      <div class="results-head">
         <div>
-          <p class="eyebrow">Review by the ${esc(MODE_LABELS[usedMode] || usedMode)}${entry.result.language === "hi" ? " · हिंदी" : ""}</p>
+          <p class="label">${esc(MODE_LABELS[usedMode] || usedMode)} review${entry.result.language === "hi" ? " · हिंदी" : ""}</p>
           <h2>${esc(entry.jobTitle)}</h2>
-          <p class="report-meta">${esc(when)} · ${esc(model)} · prompt ${esc(version)}</p>
+          <p class="meta">${esc(when)} · ${esc(model)} · prompt ${esc(version)}</p>
         </div>
-        <button id="downloadBtn" class="btn btn-secondary no-print" type="button">Save as PDF</button>
-      </header>
+        <button id="downloadBtn" class="btn btn-ghost no-print" type="button">Save as PDF</button>
+      </div>
 
-      <div class="overview">
-        <div>
-          <p class="score" style="color:${v.color}">${score}<small> / 100</small></p>
+      <div class="grid">
+        <div class="card score-card">
+          <h3>Match score</h3>
+          <div class="ring" style="--deg:${score * 3.6}deg;--ring:${v.color}">
+            <div class="ring-inner">
+              <div class="ring-num" style="color:${v.color}">${score}</div>
+              <div class="ring-of">out of 100</div>
+            </div>
+          </div>
           <p class="verdict">${esc(v.text)}</p>
           ${change}
           <div class="parts">${parts}</div>
         </div>
-        <div>
-          <p class="summary">${esc(a.summary || "No summary was returned.")}</p>
-          <h3>What already works</h3>
-          ${strengths}
+        <div class="stack">
+          <div class="card">
+            <h3>Summary</h3>
+            <p class="summary">${esc(a.summary || "No summary was returned.")}</p>
+          </div>
+          <div class="card">
+            <h3>What already works</h3>
+            ${strengths}
+          </div>
         </div>
       </div>
 
-      <section class="section">
-        <h3>Missing from your resume</h3>
-        <p class="section-intro">Terms the job description uses that your resume doesn't. Add the ones that are true for you, in the job's own wording.</p>
+      <div class="card">
+        <h3>Missing keywords</h3>
+        <p class="hint">Terms the job uses that your resume doesn't. Add the ones that are true for you.</p>
         ${keywords}
-      </section>
+      </div>
 
-      <section class="section">
+      <div class="card">
         <h3>Skill gaps</h3>
-        <p class="section-intro">What this role needs that your resume doesn't show yet, and a practical way to close each gap.</p>
+        <p class="hint">What this role needs that your resume doesn't show yet, and how to close each gap.</p>
         ${gaps}
-      </section>
+      </div>
 
-      <section class="section">
+      <div class="card">
         <h3>What to change</h3>
         ${improvements}
-      </section>
+      </div>
 
-      <section class="section">
+      <div class="card">
         <h3>Stronger bullet points</h3>
-        <p class="section-intro">Lines from your resume, rewritten. Anything in <span class="placeholder">[brackets]</span> is a number only you know, so fill it in truthfully or leave it out.</p>
+        <p class="hint">Anything in <span class="placeholder">[brackets]</span> is a number only you know. Fill it in truthfully or leave it out.</p>
         ${rewrites}
-      </section>
+      </div>
 
-      <section class="section no-print">
-        <h3>Next: apply for it</h3>
-        <p class="section-intro">A cover letter and interview questions for this job, written only from what's in your resume.</p>
+      <div class="card no-print">
+        <h3>Apply for it</h3>
+        <p class="hint">A cover letter and interview questions for this job, written only from what's in your resume.</p>
         ${toolkit}
-      </section>
-
-      <p class="report-foot no-print">Make the changes, then review the resume again. You'll see how far the score moved.</p>
-    </article>`;
+      </div>
+    </div>`;
 
   $("downloadBtn").addEventListener("click", () => window.print());
   els.results.querySelectorAll("[data-tool]").forEach((btn) => btn.addEventListener("click", () => runTool(btn.dataset.tool, btn)));
@@ -400,7 +421,7 @@ async function runTool(type, button) {
   const output = $("toolOutput");
   const buttons = els.results.querySelectorAll("[data-tool]");
   buttons.forEach((b) => { b.disabled = true; });
-  button.innerHTML = '<span class="dots">Writing</span>';
+  button.textContent = "Writing…";
   output.innerHTML = "";
 
   try {
@@ -430,9 +451,9 @@ function renderLetter(letter) {
   return `
     <div class="tool-head">
       <h4>Cover letter</h4>
-      <button id="copyLetterBtn" type="button" class="text-btn">Copy to clipboard</button>
+      <button id="copyLetterBtn" type="button" class="link-btn">Copy to clipboard</button>
     </div>
-    <p class="letter-subject"><span class="muted">Subject:</span> ${esc(letter.subject)}</p>
+    <p class="letter-subject">Subject: <b>${esc(letter.subject)}</b></p>
     <div class="letter">${withPlaceholders(letter.body)}</div>`;
 }
 
@@ -476,7 +497,6 @@ function renderHistory() {
           <span class="history-title">${esc(e.jobTitle)}</span>
           <span class="history-sub">${esc(MODE_LABELS[e.mode] || e.mode)} · ${esc(new Date(e.date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }))}</span>
         </span>
-        <span class="history-open">Open</span>
       </button>
     </li>`).join("");
 }

@@ -8,7 +8,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script>
   // Apply the saved theme before the page paints, so there is no flash.
@@ -20,51 +20,48 @@
 </head>
 <body>
 
-<header class="topbar">
-  <div class="wrap topbar-inner">
-    <a class="wordmark" href="/">Resume<span>x</span></a>
-    <button id="themeToggle" class="text-btn" type="button">Dark mode</button>
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div>
+      <a class="wordmark" href="/">Resume<span>x</span></a>
+      <p class="tagline">Read your resume the way the hiring team will. Get a match score, the gaps that matter and stronger bullet points, without anything made up.</p>
+    </div>
+    <button id="themeToggle" class="theme-btn" type="button" aria-label="Switch to dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+    </button>
   </div>
 </header>
 
 <main class="wrap">
-
-  <section class="intro">
-    <p class="eyebrow">Resume review</p>
-    <h1>See your resume the way the hiring team will.</h1>
-    <p class="lede">Paste your resume and the job you want. Resumex scores the match, lists what the job asks for that your resume doesn't show, and rewrites weak lines without inventing anything you didn't do.</p>
-  </section>
 
   <div id="fileNotice" class="notice" hidden>
     You opened this file directly, so the reviewer can't run. Start it with <code>npm run dev</code> and open
     <a href="http://localhost:3000">localhost:3000</a>, or use the live site.
   </div>
 
-  <section class="step" aria-labelledby="step1">
-    <div class="step-head">
-      <span class="step-no">1</span>
-      <h2 id="step1">Choose who reads it</h2>
-    </div>
-    <div class="modes" role="radiogroup" aria-labelledby="step1">
+  <section class="block" aria-labelledby="modeHeading">
+    <h2 id="modeHeading" class="label">Reviewer</h2>
+    <div class="modes" role="radiogroup" aria-labelledby="modeHeading">
       <button type="button" class="mode" role="radio" data-mode="general" aria-checked="true">
-        <span class="mode-name">Career Coach</span>
-        <span class="mode-desc">A general review for any industry: relevance, results and ATS-friendly formatting.</span>
+        <strong>Career Coach</strong>
+        <span>Any industry. Relevance, results and ATS-friendly formatting.</span>
       </button>
       <button type="button" class="mode" role="radio" data-mode="tech" aria-checked="false">
-        <span class="mode-name">Tech Recruiter</span>
-        <span class="mode-desc">For engineering roles. Looks for depth in the exact stack and measurable impact.</span>
+        <strong>Tech Recruiter</strong>
+        <span>Engineering roles. Depth in the exact stack and measurable impact.</span>
       </button>
       <button type="button" class="mode" role="radio" data-mode="fresher" aria-checked="false">
-        <span class="mode-name">Fresh Graduate</span>
-        <span class="mode-desc">For internships and first jobs. Projects and coursework count as real evidence.</span>
+        <strong>Fresh Graduate</strong>
+        <span>Internships and first jobs. Projects and coursework count.</span>
       </button>
       <button type="button" class="mode" role="radio" data-mode="changer" aria-checked="false">
-        <span class="mode-name">Career Changer</span>
-        <span class="mode-desc">Moving into a new field. Maps what you've done before onto what the new role needs.</span>
+        <strong>Career Changer</strong>
+        <span>New field. Maps what you've done onto what the role needs.</span>
       </button>
     </div>
     <div class="lang-row">
-      <span id="langLabel">Write the feedback in</span>
+      <span id="langLabel">Feedback language</span>
       <div class="segmented" role="group" aria-labelledby="langLabel">
         <button type="button" class="seg" data-lang="en" aria-pressed="true">English</button>
         <button type="button" class="seg" data-lang="hi" aria-pressed="false" lang="hi">हिंदी</button>
@@ -72,54 +69,53 @@
     </div>
   </section>
 
-  <div class="inputs">
-    <section class="step" aria-labelledby="step2">
-      <div class="step-head">
-        <span class="step-no">2</span>
-        <h2 id="step2">Your resume</h2>
+  <section class="inputs">
+    <div class="card input-card">
+      <div class="card-head">
+        <h2 class="label">Your resume</h2>
         <span id="resumeCount" class="count">0 characters</span>
       </div>
       <label id="dropZone" class="drop" for="resumeFile">
         <input id="resumeFile" type="file" accept=".pdf,.txt,application/pdf,text/plain">
-        <span class="drop-main"><u>Upload a PDF or text file</u> or drop it here</span>
-        <span id="fileStatus" class="drop-note">The text is read in your browser. The file itself isn't uploaded.</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <span class="drop-text"><strong>Upload a PDF or text file</strong> or drop it here</span>
+        <span id="fileStatus" class="drop-note">Read in your browser. The file isn't uploaded.</span>
       </label>
-      <textarea id="resume" aria-label="Resume text" placeholder="Or paste the text of your resume here."></textarea>
-    </section>
+      <textarea id="resume" aria-label="Resume text" placeholder="Or paste your resume text here."></textarea>
+    </div>
 
-    <section class="step" aria-labelledby="step3">
-      <div class="step-head">
-        <span class="step-no">3</span>
-        <h2 id="step3">The job</h2>
+    <div class="card input-card">
+      <div class="card-head">
+        <h2 class="label">Job description</h2>
         <span id="jobCount" class="count">0 characters</span>
       </div>
       <textarea id="jobDesc" class="tall" aria-label="Job description text" placeholder="Paste the full job description: title, responsibilities and requirements."></textarea>
-    </section>
-  </div>
+    </div>
+  </section>
 
   <div class="actions">
     <button id="analyzeBtn" class="btn btn-primary" type="button">Review my resume</button>
-    <button id="sampleBtn" class="text-btn" type="button">Try it with a sample</button>
-    <button id="clearBtn" class="text-btn" type="button">Clear</button>
+    <button id="sampleBtn" class="btn btn-ghost" type="button">Try a sample</button>
+    <button id="clearBtn" class="btn btn-ghost" type="button">Clear</button>
   </div>
 
   <div id="results" aria-live="polite"></div>
 
   <section class="history" aria-labelledby="historyHeading">
     <div class="history-head">
-      <h2 id="historyHeading">Earlier reviews</h2>
-      <button id="clearHistoryBtn" class="text-btn small" type="button" hidden>Clear all</button>
+      <h2 id="historyHeading" class="label">Earlier reviews</h2>
+      <button id="clearHistoryBtn" class="link-btn" type="button" hidden>Clear all</button>
     </div>
-    <p class="muted small">Kept in this browser only. Your resume text is never saved.</p>
     <ul id="historyList" class="history-list"></ul>
+    <p class="fineprint">Kept in this browser only. Your resume text is never saved.</p>
   </section>
 
 </main>
 
 <footer class="footer">
-  <div class="wrap footer-inner">
-    <p>Made by Subhrajit Mukherjee for the ApnoAI AI/ML internship, November 2026.</p>
-    <p class="muted">Reviews are written by Google's Gemini models. <a href="https://apnoai.com" target="_blank" rel="noopener">apnoai.com</a></p>
+  <div class="wrap">
+    <p>Made by <strong>Subhrajit Mukherjee</strong> · ApnoAI AI/ML internship · November 2026</p>
+    <p class="fineprint">Reviews are written by Google Gemini models · <a href="https://apnoai.com" target="_blank" rel="noopener">apnoai.com</a></p>
   </div>
 </footer>
 
