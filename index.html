@@ -3,12 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Resumex — Resume review for a specific job</title>
-<meta name="description" content="Resumex reads your resume against a job description: a match score, missing keywords, skill gaps and stronger bullet points, without invented achievements.">
+<title>Resumex — AI Resume Analyzer</title>
+<meta name="description" content="Resumex compares your resume with a job description and gives an ATS score, missing keywords, skill gaps and rewritten bullet points. Powered by Gemini.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script>
   // Apply the saved theme before the page paints, so there is no flash.
@@ -20,103 +17,104 @@
 </head>
 <body>
 
-<header class="hero">
-  <div class="wrap hero-inner">
-    <div>
-      <a class="wordmark" href="/">Resume<span>x</span></a>
-      <p class="tagline">Read your resume the way the hiring team will. Get a match score, the gaps that matter and stronger bullet points, without anything made up.</p>
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>Resume<span class="brand-x">x</span></h1>
+      <p class="tagline">Your AI career copilot. Paste a resume and a job description to get an ATS score, missing keywords, skill gaps and stronger bullet points.</p>
+      <span class="badge">Powered by Gemini</span>
     </div>
-    <button id="themeToggle" class="theme-btn" type="button" aria-label="Switch to dark mode">
-      <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+    <button id="themeToggle" class="icon-btn" type="button" aria-label="Switch to dark mode" title="Toggle dark mode">
+      <span class="theme-icon" aria-hidden="true">🌙</span>
     </button>
   </div>
 </header>
 
-<main class="wrap">
+<main class="container">
 
-  <div id="fileNotice" class="notice" hidden>
-    You opened this file directly, so the reviewer can't run. Start it with <code>npm run dev</code> and open
-    <a href="http://localhost:3000">localhost:3000</a>, or use the live site.
-  </div>
-
-  <section class="block" aria-labelledby="modeHeading">
-    <h2 id="modeHeading" class="label">Reviewer</h2>
-    <div class="modes" role="radiogroup" aria-labelledby="modeHeading">
-      <button type="button" class="mode" role="radio" data-mode="general" aria-checked="true">
-        <strong>Career Coach</strong>
-        <span>Any industry. Relevance, results and ATS-friendly formatting.</span>
+  <section class="mode-section" aria-labelledby="modeHeading">
+    <h2 id="modeHeading" class="section-label">Choose your copilot</h2>
+    <div class="mode-switch" role="group" aria-labelledby="modeHeading">
+      <button type="button" class="mode-btn" data-mode="general" aria-pressed="true">
+        <span class="mode-icon" aria-hidden="true">🧭</span>
+        <span class="mode-text"><strong>Career Coach</strong><small>Any industry: relevance, results and ATS-friendly formatting</small></span>
       </button>
-      <button type="button" class="mode" role="radio" data-mode="tech" aria-checked="false">
-        <strong>Tech Recruiter</strong>
-        <span>Engineering roles. Depth in the exact stack and measurable impact.</span>
+      <button type="button" class="mode-btn" data-mode="tech" aria-pressed="false">
+        <span class="mode-icon" aria-hidden="true">🧑‍💻</span>
+        <span class="mode-text"><strong>Tech Recruiter</strong><small>Coding skills, impact and depth for engineering roles</small></span>
       </button>
-      <button type="button" class="mode" role="radio" data-mode="fresher" aria-checked="false">
-        <strong>Fresh Graduate</strong>
-        <span>Internships and first jobs. Projects and coursework count.</span>
+      <button type="button" class="mode-btn" data-mode="fresher" aria-pressed="false">
+        <span class="mode-icon" aria-hidden="true">🎓</span>
+        <span class="mode-text"><strong>Fresh Graduate</strong><small>Projects, internships and potential for entry-level roles</small></span>
       </button>
-      <button type="button" class="mode" role="radio" data-mode="changer" aria-checked="false">
-        <strong>Career Changer</strong>
-        <span>New field. Maps what you've done onto what the role needs.</span>
+      <button type="button" class="mode-btn" data-mode="changer" aria-pressed="false">
+        <span class="mode-icon" aria-hidden="true">🔄</span>
+        <span class="mode-text"><strong>Career Changer</strong><small>Maps your past experience onto a role in a new field</small></span>
       </button>
     </div>
     <div class="lang-row">
-      <span id="langLabel">Feedback language</span>
+      <span id="langLabel" class="lang-label">Feedback language</span>
       <div class="segmented" role="group" aria-labelledby="langLabel">
-        <button type="button" class="seg" data-lang="en" aria-pressed="true">English</button>
-        <button type="button" class="seg" data-lang="hi" aria-pressed="false" lang="hi">हिंदी</button>
+        <button type="button" class="seg-btn" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" class="seg-btn" data-lang="hi" aria-pressed="false" lang="hi">हिंदी</button>
       </div>
     </div>
   </section>
 
-  <section class="inputs">
-    <div class="card input-card">
+  <div id="fileNotice" class="notice" hidden>
+    <strong>Opened as a local file.</strong> The AI runs on a small server, so double-clicking <code>index.html</code> can't reach it.
+    Run <code>npm run dev</code> in this folder and open <a href="http://localhost:3000">http://localhost:3000</a>, or use the live Vercel site.
+  </div>
+
+  <section class="input-grid">
+    <div class="input-card">
       <div class="card-head">
-        <h2 class="label">Your resume</h2>
-        <span id="resumeCount" class="count">0 characters</span>
+        <h3><span class="icon icon-resume" aria-hidden="true">📄</span> Your Resume</h3>
+        <span id="resumeCount" class="char-count">0 characters</span>
       </div>
-      <label id="dropZone" class="drop" for="resumeFile">
+      <label id="dropZone" class="drop-zone" for="resumeFile">
         <input id="resumeFile" type="file" accept=".pdf,.txt,application/pdf,text/plain">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <span class="drop-text"><strong>Upload a PDF or text file</strong> or drop it here</span>
-        <span id="fileStatus" class="drop-note">Read in your browser. The file isn't uploaded.</span>
+        <span class="drop-icon" aria-hidden="true">⬆️</span>
+        <span><strong>Upload a PDF or TXT</strong> or drag it here</span>
+        <small id="fileStatus">Text is extracted in your browser. The file is not uploaded anywhere.</small>
       </label>
-      <textarea id="resume" aria-label="Resume text" placeholder="Or paste your resume text here."></textarea>
+      <textarea id="resume" aria-label="Resume text" placeholder="…or paste your resume text here.&#10;&#10;Include your experience, skills, education and projects."></textarea>
     </div>
 
-    <div class="card input-card">
+    <div class="input-card">
       <div class="card-head">
-        <h2 class="label">Job description</h2>
-        <span id="jobCount" class="count">0 characters</span>
+        <h3><span class="icon icon-job" aria-hidden="true">💼</span> Job Description</h3>
+        <span id="jobCount" class="char-count">0 characters</span>
       </div>
-      <textarea id="jobDesc" class="tall" aria-label="Job description text" placeholder="Paste the full job description: title, responsibilities and requirements."></textarea>
+      <textarea id="jobDesc" class="tall" aria-label="Job description text" placeholder="Paste the full job description here.&#10;&#10;Include the job title, required skills, responsibilities and qualifications."></textarea>
     </div>
   </section>
 
   <div class="actions">
-    <button id="analyzeBtn" class="btn btn-primary" type="button">Review my resume</button>
+    <button id="analyzeBtn" class="btn btn-primary" type="button">
+      <span aria-hidden="true">🚀</span> Analyze Resume
+    </button>
     <button id="sampleBtn" class="btn btn-ghost" type="button">Try a sample</button>
     <button id="clearBtn" class="btn btn-ghost" type="button">Clear</button>
   </div>
 
-  <div id="results" aria-live="polite"></div>
+  <div id="results" class="results" aria-live="polite"></div>
 
   <section class="history" aria-labelledby="historyHeading">
     <div class="history-head">
-      <h2 id="historyHeading" class="label">Earlier reviews</h2>
-      <button id="clearHistoryBtn" class="link-btn" type="button" hidden>Clear all</button>
+      <h2 id="historyHeading" class="section-label">Your past analyses</h2>
+      <button id="clearHistoryBtn" class="link-btn" type="button" hidden>Clear history</button>
     </div>
+    <p class="history-note">Saved only in this browser. Your resume text is never stored.</p>
+    <div id="trend" class="trend-card" hidden></div>
     <ul id="historyList" class="history-list"></ul>
-    <p class="fineprint">Kept in this browser only. Your resume text is never saved.</p>
   </section>
 
 </main>
 
-<footer class="footer">
-  <div class="wrap">
-    <p>Made by <strong>Subhrajit Mukherjee</strong> · ApnoAI AI/ML internship · November 2026</p>
-    <p class="fineprint">Reviews are written by Google Gemini models · <a href="https://apnoai.com" target="_blank" rel="noopener">apnoai.com</a></p>
-  </div>
+<footer class="site-footer">
+  <p>Built by <strong>Subhrajit Mukherjee</strong> · ApnoAI AI/ML Intern · November 2026</p>
+  <p class="footer-sub">Powered by the Google Gemini API · <a href="https://apnoai.com" target="_blank" rel="noopener">apnoai.com</a></p>
 </footer>
 
 <script src="app.js"></script>
